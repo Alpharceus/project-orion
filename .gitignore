@@ -1,0 +1,69 @@
+# ============================================================
+# Project Orion — .gitignore
+# Keeps secrets, personal data, planning docs, and heavy model
+# / build artifacts out of the repo. Code + docs stay in.
+# ============================================================
+
+# --- Secrets & credentials (none exist today, but never commit them) ---
+.env
+.env.*
+*.key
+*.pem
+secrets*
+credentials*
+
+# --- Personal data ---
+# JSON stores: long-term memory facts, reminders, tasks, movie-mode prefs
+data/
+# Personal cloned-voice state + the source recording it was made from
+models/pocket_tts/
+*.wav
+
+# --- Planning / working docs (not for the repo) ---
+ORION_PHASE4_PLUS.md
+orion_hud_mockup.html
+.claude/
+
+# --- Heavy models & binaries ---
+# Gemma 4 12B GGUF (6.7 GB), mmproj (168 MB) — download instructions in README
+models/*
+!models/wakeword/
+*.gguf
+*.safetensors
+# llama.cpp binaries + CUDA DLLs (685 MB) — build b9585, see README
+bin/
+# Downloaded arXiv PDFs
+papers/
+
+# --- Wake-word training data & artifacts (audio datasets, ~240 MB) ---
+# Training/verify scripts stay; clips and trained checkpoints do not.
+wakeword_training/data/
+wakeword_training/positives_train/
+wakeword_training/positives_test/
+wakeword_training/adversarial_negatives/
+wakeword_training/artifacts/
+
+# --- Vendored upstream repo (817 MB reference clone) ---
+PocketTTS voice clone/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+orion_env/
+.venv/
+venv/
+
+# --- Node / SvelteKit (hud/) ---
+node_modules/
+hud/build/
+hud/.svelte-kit/
+hud/build.log
+
+# --- Tauri / Rust (5.7 GB of build output) ---
+hud/src-tauri/target/
+hud/src-tauri/gen/
+
+# --- Misc ---
+*.log
+Thumbs.db
+.DS_Store

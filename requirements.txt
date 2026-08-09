@@ -1,0 +1,10 @@
+# Project Orion — Python 3.12
+pocket-tts==2.1.0    # Kyutai PocketTTS: CPU-only 100M TTS with voice cloning (pulls in torch>=2.5 CPU)
+openai==2.41.1
+sounddevice==0.5.5
+soundfile==0.14.0
+pysilero-vad==3.2.0  # newest version with a prebuilt win_amd64 wheel (3.3.0+ needs a C compiler)
+openwakeword==0.6.0  # CPU wake word (custom "hey orion" ONNX model); run download_models() once for feature models
+websockets==16.0     # local HUD bridge (asyncio server on 127.0.0.1:8765)
+psutil==7.2.2        # CPU/RAM telemetry
+nvidia-ml-py         # GPU VRAM/util telemetry (NVML; import pynvml)
