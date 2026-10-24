@@ -6,6 +6,7 @@ Agents that fire on timers (pomodoro, eye care) announce themselves through
 notify(), which orion.py wires to the speaker at startup.
 """
 
+import config
 import events
 
 REGISTRY = {}  # name -> {"spec": OpenAI tool spec, "func": callable}
@@ -16,6 +17,8 @@ _notifier = print  # replaced by orion.py with a print-and-speak callback
 # panels, so they're not here). The HUD also hardcodes this set for guaranteed
 # visibility; these baseline events just set initial idle status.
 HUD_AGENT_IDS = ["pomodoro", "eye_care", "terminal", "arxiv_briefing", "memory", "movie"]
+if not config.ENABLE_TERMINAL:
+    HUD_AGENT_IDS.remove("terminal")
 
 
 def publish_agents_baseline() -> None:
@@ -64,4 +67,6 @@ def notify(text: str) -> None:
     _notifier(text)
 
 
-from . import terminal, pomodoro, eye_care, arxiv_briefing, sleep, reminders, tasks, memory, movie  # noqa: E402,F401  (importing registers their tools)
+from . import pomodoro, eye_care, arxiv_briefing, sleep, reminders, tasks, memory, movie, persona_switch  # noqa: E402,F401  (importing registers their tools)
+if config.ENABLE_TERMINAL:  # off by default: unbounded shell access (see config.py)
+    from . import terminal  # noqa: E402,F401

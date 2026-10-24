@@ -11,7 +11,8 @@
   const AGENTS = [
     { id: "pomodoro", glyph: "◷", name: "Pomodoro" },
     { id: "eye_care", glyph: "◉", name: "Eye Care" },
-    { id: "terminal", glyph: "▸_", name: "Terminal" },
+    // Terminal node disabled until Orion runs sandboxed (config.ENABLE_TERMINAL).
+    // { id: "terminal", glyph: "▸_", name: "Terminal" },
     { id: "arxiv_briefing", glyph: "✦", name: "Briefing" },
     { id: "memory", glyph: "◈", name: "Memory" },
     { id: "movie", glyph: "❖", name: "Movie" },

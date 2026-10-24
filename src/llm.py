@@ -82,7 +82,19 @@ def oneshot(system: str, user: str) -> str:
 
 def transcribe(audio_b64: str) -> str:
     """Transcribe a user utterance to text, so conversation history stays text
-    (not accumulating audio blobs) and the user's words can reach the HUD."""
+    (not accumulating audio blobs) and the user's words can reach the HUD.
+
+    Whisper (CPU) by default; Gemma is the selectable engine and the fallback."""
+    if config.STT_ENGINE == "whisper":
+        try:
+            import stt
+            return stt.transcribe(audio_b64)
+        except Exception as e:
+            print(f"⚠️  [Orion] Whisper failed ({e}); falling back to Gemma transcription.")
+    return _gemma_transcribe(audio_b64)
+
+
+def _gemma_transcribe(audio_b64: str) -> str:
     response = client.chat.completions.create(
         model=config.LLM_MODEL,
         messages=[{"role": "user", "content": [
@@ -145,3 +157,10 @@ def chat_turn(messages: list, speaker=None) -> str:
             else:
                 output = dispatch(tc["name"], args)
             messages.append({"role": "tool", "tool_call_id": tc["id"], "content": output})
+        # A persona switch must take effect on the very next reply in this loop,
+        # so rebuild the system message now rather than at the next turn.
+        if (any(tc["name"] == "switch_persona" for tc in tool_calls)
+                and messages[0]["role"] == "system"):
+            import memory
+            import persona
+            messages[0]["content"] = persona.system_prompt() + memory.preamble()

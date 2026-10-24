@@ -1,7 +1,7 @@
 <script>
   import { onMount } from "svelte";
   import { browser } from "$app/environment";
-  import { orionState, connState, movie, startWs } from "$lib/ws.js";
+  import { orionState, connState, movie, persona, startWs } from "$lib/ws.js";
   import { initOverlay, setOverlayInteractive } from "$lib/overlay.js";
   import { syncMovie, selfBlackout } from "$lib/movieWindows.js";
   import MovieMode from "$lib/MovieMode.svelte";
@@ -78,7 +78,7 @@
   <!-- A spawned blackout window: fill its monitor black + run the animation. -->
   <div class="blackout"><MovieMode enabled={$movie?.on} /></div>
 {:else}
-<div class="hud-root" class:dormant={!summoned} class:summoned class:waking class:glow style="--sweep:{sweep}deg">
+<div class="hud-root" class:dormant={!summoned} class:summoned class:waking class:glow class:ultron={$persona === "ultron"} style="--sweep:{sweep}deg">
   <!-- Blackout for the HUD's OWN monitor: bottom layer, below the HUD + core orb.
        Only when this monitor is a target (selfBlackout). -->
   <MovieMode enabled={$movie?.on && $selfBlackout} />

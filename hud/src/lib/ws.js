@@ -21,6 +21,7 @@ export const telemetry = writable({});            // { weather, cpu, gpu_gb, gpu
 export const ticker = writable([]);               // [title, ...]
 export const remindersList = writable([]);        // [{ text, when }]
 export const tasksList = writable([]);            // [{ title, priority, due }]
+export const persona = writable("orion");         // orion | ultron (drives the HUD palette)
 export const movie = writable({ on: false, index: 0, screens: "others" }); // movie-mode animation
 
 let latestAmp = 0;
@@ -45,6 +46,7 @@ function handle(msg) {
     case "ticker": ticker.set(msg.titles || []); break;
     case "reminders_list": remindersList.set(msg.items || []); break;
     case "tasks_list": tasksList.set(msg.items || []); break;
+    case "persona": persona.set(msg.name || "orion"); break;
     case "movie": movie.set({ on: !!msg.on, index: msg.index || 0, name: msg.name, screens: msg.screens || "others" }); break;
   }
 }

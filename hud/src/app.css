@@ -11,6 +11,7 @@
   --slate: #6b7da3;
   --ember: #4696ff;
   --hair: rgba(201, 212, 232, 0.14);
+  --mist: #c9d4e8;  /* glow white (201,212,232); mixed with alpha via color-mix */
   --halo: 0 0 1px rgba(10, 14, 26, 0.9), 0 1px 6px rgba(10, 14, 26, 0.85);
   --font-display: "Space Grotesk", system-ui, sans-serif;
   --font-body: "Inter", system-ui, sans-serif;
@@ -22,6 +23,23 @@ html, body { height: 100%; background: transparent; overflow: hidden; font-famil
 
 /* root fills the whole (transparent) window */
 .hud-root { position: fixed; inset: 0; overflow: hidden; }
+
+/* Ultron persona: the blue/white palette shifts to red. Custom properties are
+   not animatable without @property, so register the colour tokens to let the
+   shift fade over ~0.6 s instead of snapping. */
+@property --ember { syntax: "<color>"; inherits: true; initial-value: #4696ff; }
+@property --starwhite { syntax: "<color>"; inherits: true; initial-value: #dbe4f5; }
+@property --slate { syntax: "<color>"; inherits: true; initial-value: #6b7da3; }
+@property --mist { syntax: "<color>"; inherits: true; initial-value: #c9d4e8; }
+@property --hair { syntax: "<color>"; inherits: true; initial-value: rgba(201, 212, 232, 0.14); }
+.hud-root { transition: --ember 0.6s ease, --starwhite 0.6s ease, --slate 0.6s ease, --hair 0.6s ease, --mist 0.6s ease; }
+.hud-root.ultron {
+  --ember: #ff3030;
+  --starwhite: #f5d6d2;
+  --slate: #a36b6b;
+  --hair: rgba(255, 120, 110, 0.18);
+  --mist: #ebcdc8;
+}
 
 /* a spawned blackout window (movie mode on a non-main monitor): solid black,
    the animation canvas renders on top. */
@@ -49,7 +67,7 @@ html, body { height: 100%; background: transparent; overflow: hidden; font-famil
   position: absolute; inset: 0; pointer-events: none; z-index: 30; padding: 2px; opacity: 0;
   background: conic-gradient(from var(--sweep, 0deg),
     transparent 0deg, transparent 300deg,
-    rgba(201, 212, 232, 0) 312deg, var(--starwhite) 345deg,
+    color-mix(in srgb, var(--mist) 0%, transparent) 312deg, var(--starwhite) 345deg,
     var(--ember) 358deg, transparent 360deg);
   -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
@@ -59,14 +77,14 @@ html, body { height: 100%; background: transparent; overflow: hidden; font-famil
 .waking .edge { opacity: 1; }
 .summoned .edge {
   opacity: 0.5; background: linear-gradient(transparent, transparent);
-  box-shadow: inset 0 0 0 1px rgba(201, 212, 232, 0.18), inset 0 0 40px rgba(70, 150, 255, 0.08);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mist) 18%, transparent), inset 0 0 40px color-mix(in srgb, var(--ember) 8%, transparent);
 }
 
 /* ---- sustained ambient frame glow (held while LISTENING) ---- */
 .frameglow {
   position: absolute; inset: 0; pointer-events: none; z-index: 31; opacity: 0;
   transition: opacity 0.7s ease;
-  box-shadow: inset 0 0 70px 8px rgba(201, 212, 232, 0.28), inset 0 0 26px 2px rgba(70, 150, 255, 0.14);
+  box-shadow: inset 0 0 70px 8px color-mix(in srgb, var(--mist) 28%, transparent), inset 0 0 26px 2px color-mix(in srgb, var(--ember) 14%, transparent);
 }
 .glow .frameglow { opacity: 1; animation: frameBreathe 3.2s ease-in-out infinite; }
 @keyframes frameBreathe { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
@@ -154,7 +172,7 @@ html, body { height: 100%; background: transparent; overflow: hidden; font-famil
   font-family: var(--font-mono); color: #ff8a5c; font-size: 18px; opacity: 1;
   text-shadow: 0 0 9px rgba(255, 107, 71, 0.55);
 }
-.agent.active .glyph { color: var(--ember); text-shadow: 0 0 10px rgba(70, 150, 255, 0.6); }
+.agent.active .glyph { color: var(--ember); text-shadow: 0 0 10px color-mix(in srgb, var(--ember) 60%, transparent); }
 .agent .arc {
   position: absolute; inset: -3px; border-radius: 50%;
   background: conic-gradient(var(--ember) var(--p, 0%), transparent 0);
@@ -166,7 +184,7 @@ html, body { height: 100%; background: transparent; overflow: hidden; font-famil
 .agent .name { font-family: var(--font-display); letter-spacing: 0.1em; font-size: 10px; text-transform: uppercase; text-shadow: var(--halo); display: block; }
 .agent .meta { font-family: var(--font-mono); font-size: 11px; color: var(--slate); text-shadow: var(--halo); margin-top: 2px; display: block; }
 .agent:hover .label, .agent.active .label { opacity: 1; }
-.agent:hover .ring, .agent.active .ring { border-color: rgba(70, 150, 255, 0.85); }
+.agent:hover .ring, .agent.active .ring { border-color: color-mix(in srgb, var(--ember) 85%, transparent); }
 @keyframes bootIn {
   0% { opacity: 0; transform: scale(3.4); filter: blur(6px); }
   50% { opacity: 1; filter: blur(0); }

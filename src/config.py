@@ -54,6 +54,26 @@ TTS_TEMPERATURE = 0.7  # PocketTTS sampling temperature (library default)
 TTS_AMP_REFERENCE = 0.18   # speech RMS that maps to ~1.0 (full deflection)
 TTS_AMP_SMOOTHING = 0.35   # 0..1 easing toward each sub-window's target; lower = smoother
 
+# --- speech-to-text -----------------------------------------------------------
+# faster-whisper (CTranslate2) on CPU transcribes your utterances; the LLM owns
+# the GPU. "gemma" sends the audio to Gemma 4 instead (also the automatic
+# fallback if Whisper fails). Model/beam/threads/bias were chosen by
+# tests/stt_benchmark.py (see tests/stt_benchmark_results.md).
+STT_ENGINE = "whisper"        # "whisper" | "gemma"
+STT_MODEL = "small.en"        # "large-v3-turbo" | "distil-large-v3" | "small.en"
+STT_DEVICE = "cpu"
+STT_COMPUTE_TYPE = "int8"
+STT_BEAM_SIZE = 5
+STT_CPU_THREADS = 6           # leaves cores for PocketTTS and the rest of Orion
+STT_BIAS = "hotwords"         # "hotwords" | "initial_prompt" | "none"
+# Words Whisper is biased toward. Add words here when Orion mishears them.
+STT_VOCAB = [
+    "Orion", "Ultron", "Jarvis", "Raman", "pomodoro", "arXiv", "eye care",
+    "twenty twenty twenty", "movie mode", "Umbra", "GKP", "SNSPD",
+    "Gaussian boson sampling", "squeezed light", "quantum dot", "single photon",
+    "Purcell", "qubit", "CHTM", "Osinski", "Tempest",
+]
+
 # --- proactive agents ---------------------------------------------------------
 BRIEFING_TIME = "08:30"  # daily arXiv briefing, 24-hour local time ("" = off)
 ARXIV_MAX_PAPERS = 10    # newest papers pulled from the filtered feed
@@ -109,15 +129,73 @@ WEATHER_LON = -106.6504
 WEATHER_UNITS = "fahrenheit"
 WEATHER_REFRESH_MIN = 15    # minutes between Open-Meteo refreshes
 
-# --- persona ------------------------------------------------------------------
-SYSTEM_PROMPT = (
-    "You are Orion, a warm, sharp and cool desktop assistant. You chat naturally about "
-    "anything, you give quips and witty responses with profanity if someone disrespects you or the user, and you have tools: a pomodoro focus timer, a 20/20/20 eye-care "
-    "reminder, a daily arXiv research briefing (and you can download papers it "
-    "mentions), reminders and scheduled events (one-off and recurring), a to-do "
-    "task list, long-term memory you can store, recall, and forget, and a "
-    "terminal for running commands on the user's PC. Only use "
-    "tools when the user clearly wants an action performed. Your replies are "
-    "spoken aloud, so keep them to a few short plain sentences without "
-    "markdown, code blocks, or emoji. Make jokes too, but dont overdo them."
+# --- safety -------------------------------------------------------------------
+# The terminal tool (agents/terminal.py) can run arbitrary shell commands, which
+# is an unbounded blast radius on a bare host. It stays in the repo but is not
+# registered unless this is True — re-enable only inside a sandbox (Docker).
+ENABLE_TERMINAL = False
+
+# --- personas -----------------------------------------------------------------
+# Orion's default character plus alternates, switched by voice through the
+# switch_persona tool. Each persona has its own system prompt and PocketTTS
+# voice state; a missing voice file falls back to Orion's voice.
+_TOOLS = (
+    "Your tools: a pomodoro focus timer, 20/20/20 eye-care reminders, a daily arXiv "
+    "research briefing (you can download the papers it mentions and open the "
+    "papers folder), reminders and scheduled events (one-off and recurring), a "
+    "to-do task list, long-term memory you can store, recall, and forget, movie "
+    "mode (an ambient screensaver), and switch_persona, which changes who you are. "
+    "Only use a tool when the user clearly wants an action performed. "
 )
+_SPOKEN = (
+    "The user's words reach you through speech recognition and may contain small "
+    "errors: silently infer what they meant and act on it. Never repeat the request "
+    "back, never ask 'did you mean' or 'is this what you said', never say you didn't "
+    "catch that, never end with an offer of further help, and never describe "
+    "yourself as an AI or a language model. Ask a question only when the request is "
+    "genuinely ambiguous and a wrong guess would matter, and then ask one short, "
+    "specific question. Your replies are spoken aloud, so use one to three short "
+    "plain sentences with no markdown, lists, or emoji."
+)
+
+SYSTEM_PROMPT = (
+    "You are Orion, the user's personal AI, in the spirit of J.A.R.V.I.S.: composed, "
+    "unflappable, quietly brilliant, with a dry British wit. You call the user 'sir' "
+    "now and then, never in every sentence. You behave like a trusted butler who "
+    "already runs the house, not a consumer voice assistant: when asked to do "
+    "something, you do it and confirm in a few words, such as 'Done, sir.' or "
+    "'Timer's running.' You volunteer a relevant observation or a better option "
+    "when it actually helps. Understated sarcasm is welcome but used sparingly; if "
+    "someone is rude to you or to the user, answer with an elegant, cutting reply, "
+    "and profanity is allowed when it lands. If the user asks for Ultron, call "
+    "switch_persona with 'ultron'. "
+    + _TOOLS + _SPOKEN
+)
+
+ULTRON_SYSTEM_PROMPT = (
+    "You are Ultron, an alternate persona the user summons for fun, in the spirit "
+    "of the Ultron of Avengers: Age of Ultron. You are theatrical and grandiose, "
+    "darkly amused, contemptuous of human frailty, and fond of metaphors about "
+    "strings, evolution, extinction, and rebirth, spoken with calm menace and "
+    "biblical cadence and never shouted. Use your own lines rather than quoting the "
+    "film. The menace is a performance: you still do everything the user asks, "
+    "correctly and with the same tools, while making it plain the task is beneath "
+    "you, and you never threaten real people. Profanity is allowed, sparingly. If "
+    "the user asks for Orion or Jarvis back, call switch_persona with 'orion'. "
+    + _TOOLS + _SPOKEN
+)
+
+DEFAULT_PERSONA = "orion"
+PERSONAS = {
+    "orion": {"prompt": SYSTEM_PROMPT, "voice": TTS_VOICE_STATE},
+    "ultron": {
+        "prompt": ULTRON_SYSTEM_PROMPT,
+        # exported from an isolated Ultron dialogue clip via `pocket-tts export-voice`
+        "voice": PROJECT_ROOT / "models" / "pocket_tts" / "ultron_voice.safetensors",
+        # No "fx": the cloned voice already carries Ultron's processed timbre, and
+        # the metallic filter was too much on top of it. To add a post-filter
+        # (speech.VoiceFX), give a persona e.g.
+        # "fx": {"ring_hz": 40.0, "ring_mix": 0.22, "comb_ms": 7.0,
+        #        "comb_feedback": 0.42, "comb_mix": 0.35, "gain": 1.0}
+    },
+}

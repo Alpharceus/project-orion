@@ -6,6 +6,7 @@ be developed and demoed without llama-server or a microphone. Launch the HUD
 (`npm run tauri dev` from hud/, or the built exe) while this is running.
 
   orion_env\Scripts\python.exe hud\demo_bridge.py
+  orion_env\Scripts\python.exe hud\demo_bridge.py --ultron   # alternate the red/blue persona palette
 """
 
 import math
@@ -38,9 +39,13 @@ publish_agents_baseline()
 events.publish({"type": "agent", "id": "pomodoro", "status": "active", "meta": "24:13", "progress": 0.62})
 events.publish({"type": "agent", "id": "eye_care", "status": "active", "meta": "14:02", "progress": 0.30})
 events.publish({"type": "transcript", "role": "user", "text": "hey orion, what's on my plate?"})
+cycle = 0  # --ultron: flip persona every loop so the palette shift is visible
 
 try:
     while True:
+        if "--ultron" in sys.argv:
+            events.publish({"type": "persona", "name": "ultron" if cycle % 2 == 0 else "orion"})
+            cycle += 1
         state.set(state.LISTENING)
         time.sleep(2.5)
         state.set(state.THINKING)

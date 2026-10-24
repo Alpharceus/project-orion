@@ -234,6 +234,12 @@ def arxiv_briefing(action: str, time: str = "", keywords=None,
     return f"Unknown action: {action}"
 
 
+# Accepted arXiv id shapes; anything else (path separators, "..") is rejected
+# before it can reach a URL or a filesystem path.
+_NEW_ID = re.compile(r"^\d{4}\.\d{4,5}(v\d+)?$")
+_OLD_ID = re.compile(r"^[a-z-]+(\.[A-Z]{2})?/\d{7}(v\d+)?$")
+
+
 @tool(
     "download_paper",
     "Download an arXiv paper as a PDF to the user's papers folder. Provide an "
@@ -259,6 +265,10 @@ def download_paper(arxiv_id=None, query=None) -> str:
                 break
     if not arxiv_id:
         return "I couldn't tell which paper you mean. Give me the arXiv id, or a few words from its title."
+
+    arxiv_id = str(arxiv_id).strip()
+    if not (_NEW_ID.match(arxiv_id) or _OLD_ID.match(arxiv_id)):
+        return "That doesn't look like a valid arXiv id (expected something like 2506.12345)."
 
     url = f"https://arxiv.org/pdf/{arxiv_id}"
     config.PAPERS_DIR.mkdir(parents=True, exist_ok=True)

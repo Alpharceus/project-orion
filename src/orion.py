@@ -19,13 +19,14 @@ import config
 import events
 import hud_server
 import memory
+import persona
 import state
 import telemetry
 from agents import movie, publish_agents_baseline, reminders, set_notifier, tasks
 from agents.arxiv_briefing import schedule_default
 from listening import record_voice
 from llm import chat_turn, server_ready, transcribe, trim_history
-from speech import SpeechPlayer, load_tts
+from speech import SpeechPlayer, load_persona_voices, load_tts
 
 
 # Whole-utterance dismissals that put Orion to sleep directly — a backstop so it
@@ -88,8 +89,16 @@ def main():
         return
 
     print("🗣️ [Orion] Loading TTS and VAD...")
-    speaker = SpeechPlayer(*load_tts())
+    tts, voice_state = load_tts()
+    speaker = SpeechPlayer(tts, voice_state, load_persona_voices(tts, {"orion": voice_state}))
     vad = SileroVoiceActivityDetector()
+    if config.STT_ENGINE == "whisper":
+        print(f"📝 [Orion] Loading speech recognition ({config.STT_MODEL}, CPU)...")
+        try:
+            import stt
+            stt.preload()
+        except Exception as e:  # llm.transcribe falls back to Gemma per utterance
+            print(f"⚠️  [Orion] Whisper unavailable ({e}); using Gemma transcription.")
 
     def announce(text: str):
         print(f"\n🔔 [Orion] {text}")
@@ -113,7 +122,7 @@ def main():
 
     # System prompt + long-term memory; conversation history rolls across turns
     # and is trimmed/summarized (llm.trim_history) so the 8k window holds.
-    messages = [{"role": "system", "content": config.SYSTEM_PROMPT + memory.preamble()}]
+    messages = [{"role": "system", "content": persona.system_prompt() + memory.preamble()}]
 
     state.set(state.IDLE)
     print("🟢 [Orion] System Online.")

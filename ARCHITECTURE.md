@@ -43,8 +43,9 @@ Project Orion/
 │   ├── telemetry.py    # CPU/GPU/RAM (psutil/NVML) + weather (Open-Meteo) -> telemetry events
 │   ├── memory.py       # persistent store: facts + arXiv dedup ledger + last briefing
 │   └── agents/         # tool registry (__init__.py) + one module per agent
-│                       #   (pomodoro, eye_care, terminal, arxiv_briefing, sleep,
-│                       #    reminders, tasks, memory, movie) — 13 tools total
+│                       #   (pomodoro, eye_care, arxiv_briefing, sleep, reminders,
+│                       #    tasks, memory, movie, persona_switch; terminal is
+│                       #    off unless config.ENABLE_TERMINAL) — 13 tools total
 ├── data/               # JSON stores: reminders.json, tasks.json, memory.json, movie.json
 ├── papers/             # arXiv PDFs downloaded via the download_paper tool
 ├── tests/              # test_agents.py (unit), test_e2e.py (needs llama-server),
@@ -96,9 +97,13 @@ The HUD bridge is optional: the assistant runs fully with no client connected.
   passes, and if the server dies mid-conversation it catches the
   `APIConnectionError`, drops the unanswered turn, and prompts a restart
   instead of crashing.
-- **STT** is native to Gemma 4 (audio tokens via mmproj) — no separate
-  whisper process. Audio must be 16 kHz mono WAV, sent base64 in the
-  `input_audio` content part.
+- **STT** is faster-whisper (`src/stt.py`, CTranslate2 int8, **CPU** — the LLM
+  owns the GPU), model `small.en` biased toward `config.STT_VOCAB` via hotwords
+  (chosen by `tests/stt_benchmark.py`; results in `tests/stt_benchmark_results.md`).
+  Loaded at startup (`stt.preload()`). Gemma 4 audio transcription
+  (`llm._gemma_transcribe`, base64 16 kHz mono WAV in an `input_audio` part) is
+  the selectable fallback (`config.STT_ENGINE = "gemma"`) and is used
+  automatically if Whisper raises.
 - **TTS** is Kyutai PocketTTS (pip `pocket-tts`, 100M params, PyTorch CPU,
   ~200 ms to first audio chunk, streamed). Output is **24 kHz** — play at
   24000, not 16000. The voice is a clone: `TTS_VOICE_STATE` in config.py points
@@ -115,6 +120,28 @@ The HUD bridge is optional: the assistant runs fully with no client connected.
 - **Tools/agents** are plain Python functions registered in the `tools=`
   parameter of the chat call; orion.py dispatches tool_calls and loops until
   the model produces a final answer.
+
+### Personas
+
+`config.PERSONAS` maps a name to a system prompt and a PocketTTS voice file;
+`src/persona.py` holds the active one (starts as `DEFAULT_PERSONA`). The
+`switch_persona` tool changes it, `chat_turn` rebuilds the system message right
+after the call so the acknowledgment is already in character, and `SpeechPlayer`
+picks the voice per sentence. Ultron's voice is a PocketTTS clone of an isolated
+dialogue clip (built with `voice_tools/`); a missing voice file falls back to
+Orion's voice with a startup warning. A `persona` event goes to the HUD.
+A persona with an `fx` config would have each sentence run through
+`speech.VoiceFX` before playback and the amplitude tap (ring modulation, a short
+feedback comb, a tanh soft clip). No persona uses it: the cloned Ultron voice
+already carries the processed timbre and the filter was too much on top. The
+HUD keeps the last persona in its snapshot and, for `ultron`, swaps the blue
+palette for red (CSS tokens on `.hud-root.ultron`, eased RGB palette in `Core.svelte`).
+
+### Terminal lockdown
+
+`config.ENABLE_TERMINAL` (default False) gates `agents/terminal.py`: when off,
+the module is never imported, so `run_terminal_command` isn't registered and
+the HUD row omits it. Re-enable only inside a sandbox.
 
 ## Roadmap
 

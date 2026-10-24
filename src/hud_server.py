@@ -23,7 +23,7 @@ import events
 # Outbound event types we relay to clients. Inbound "command" messages and any
 # unknown types are ignored by the broadcaster.
 _RELAY_TYPES = {"state", "transcript", "agent", "telemetry", "amplitude",
-                "ticker", "reminders_list", "tasks_list", "movie"}
+                "ticker", "reminders_list", "tasks_list", "movie", "persona"}
 
 _loop: asyncio.AbstractEventLoop | None = None
 _clients: set = set()          # touched only on the loop thread
@@ -33,6 +33,7 @@ _ticker = None                 # last ticker event, for snapshots
 _reminders_list = None         # last reminders_list event, for snapshots
 _tasks_list = None             # last tasks_list event, for snapshots
 _movie = None                  # last movie event, for snapshots
+_persona = {"type": "persona", "name": "orion"}  # last persona event, for snapshots
 
 
 def start() -> None:
@@ -58,21 +59,21 @@ async def _serve(ready: threading.Event) -> None:
         await asyncio.Future()  # run forever
 
 
+def _snapshot() -> list[dict]:
+    """Events a freshly connected client needs to render the current session."""
+    events_out = [_state_event, *_agents.values()]
+    for cached in (_ticker, _reminders_list, _tasks_list, _movie, _persona):
+        if cached is not None:
+            events_out.append(cached)
+    return events_out
+
+
 async def _handler(ws) -> None:
     """Serve one client: send a snapshot, then relay inbound commands to the hub."""
     _clients.add(ws)
     try:
-        await ws.send(json.dumps(_state_event, separators=(",", ":")))
-        for event in list(_agents.values()):
+        for event in _snapshot():
             await ws.send(json.dumps(event, separators=(",", ":")))
-        if _ticker is not None:
-            await ws.send(json.dumps(_ticker, separators=(",", ":")))
-        if _reminders_list is not None:
-            await ws.send(json.dumps(_reminders_list, separators=(",", ":")))
-        if _tasks_list is not None:
-            await ws.send(json.dumps(_tasks_list, separators=(",", ":")))
-        if _movie is not None:
-            await ws.send(json.dumps(_movie, separators=(",", ":")))
         async for raw in ws:
             try:
                 message = json.loads(raw)
@@ -119,6 +120,9 @@ def _relay(event: dict) -> None:
     elif event["type"] == "movie":
         global _movie
         _movie = event
+    elif event["type"] == "persona":
+        global _persona
+        _persona = event
 
     if not _clients:
         return

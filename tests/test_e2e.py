@@ -78,11 +78,14 @@ reply = turn("Actually turn the eye reminders off.")
 check("eye_care stop", any(c[0] == "eye_care" and c[1].get("action") == "stop" for c in calls), str(calls))
 
 # 4. terminal (safe command, result must flow back into the answer)
-reply = turn("What's my computer's hostname? Check it in the terminal.")
-term = [c for c in calls if c[0] == "run_terminal_command"]
-check("terminal tool called", bool(term), str(calls))
-import socket
-check("real hostname in spoken reply", socket.gethostname().lower() in reply.lower(), reply)
+if config.ENABLE_TERMINAL:
+    reply = turn("What's my computer's hostname? Check it in the terminal.")
+    term = [c for c in calls if c[0] == "run_terminal_command"]
+    check("terminal tool called", bool(term), str(calls))
+    import socket
+    check("real hostname in spoken reply", socket.gethostname().lower() in reply.lower(), reply)
+else:
+    print("terminal e2e skipped (config.ENABLE_TERMINAL is False)")
 
 print(f"\n{PASS} passed, {len(FAIL)} failed" + (f": {FAIL}" if FAIL else ""))
 sys.exit(1 if FAIL else 0)

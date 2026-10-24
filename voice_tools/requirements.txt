@@ -1,0 +1,12 @@
+# Installed by setup.ps1 with: --extra-index-url https://download.pytorch.org/whl/cpu
+# (CPU-only torch wheels; the "+cpu" builds come from that index, not PyPI.)
+# Verified together on Python 3.12 (Windows 11).
+torch==2.14.1
+torchaudio==2.11.0
+demucs==4.1.0
+silero-vad==6.2.3
+speechbrain==1.1.2
+soundfile==0.14.0
+scipy==1.18.1
+numpy==2.5.4
+scikit-learn==1.9.1

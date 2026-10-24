@@ -11,6 +11,7 @@ Beyond playback, the player owns two HUD-facing signals:
 import queue
 import re
 import threading
+from pathlib import Path
 
 import numpy as np
 import sounddevice as sd
@@ -18,6 +19,7 @@ from pocket_tts import TTSModel
 
 import config
 import events
+import persona
 import state
 
 # PocketTTS synthesizes in chunks and warns ("Chunk has N tokens (max 50),
@@ -87,6 +89,71 @@ def load_tts() -> tuple[TTSModel, dict]:
     return model, voice_state
 
 
+def load_persona_voices(model: TTSModel, loaded: dict | None = None) -> dict[str, dict]:
+    """Load the voice state of every persona whose voice file exists.
+
+    `loaded` maps persona names to voice states already in memory (e.g. Orion's
+    from load_tts) so they aren't loaded twice. Missing files are warned about
+    and omitted; the player then falls back to Orion's voice for them.
+    """
+    voices = dict(loaded or {})
+    for name, cfg in config.PERSONAS.items():
+        if name in voices:
+            continue
+        path = cfg["voice"]
+        if Path(path).exists():
+            voices[name] = model.get_state_for_audio_prompt(str(path))
+        else:
+            print(f"[Orion] No voice file for persona '{name}' ({path}); it will use Orion's voice.")
+    return voices
+
+
+class VoiceFX:
+    """Streaming metallic voice filter: ring mod + feedback comb + soft clip.
+
+    Stateful (carrier sample counter + comb delay line) so chunked processing
+    equals one-shot processing. Fully vectorized; the feedback comb runs in
+    slices no longer than its delay, so each slice only reads output that is
+    already computed.
+    """
+
+    def __init__(self, sample_rate: int, ring_hz: float, ring_mix: float,
+                 comb_ms: float, comb_feedback: float, comb_mix: float, gain: float):
+        self.sample_rate = sample_rate
+        self.ring_hz = ring_hz
+        self.ring_mix = ring_mix
+        self.delay = max(1, int(round(sample_rate * comb_ms / 1000.0)))
+        self.feedback = comb_feedback
+        self.comb_mix = comb_mix
+        self.gain = gain
+        self.reset()
+
+    def reset(self) -> None:
+        self._n = 0                                            # carrier sample counter
+        self._hist = np.zeros(self.delay, dtype=np.float64)    # last `delay` comb outputs
+
+    def process(self, samples: np.ndarray) -> np.ndarray:
+        x = np.asarray(samples, dtype=np.float64)
+        n = x.shape[0]
+        if n == 0:
+            return np.asarray(samples, dtype=np.float32)
+        idx = self._n + np.arange(n, dtype=np.float64)
+        self._n += n
+        carrier = np.sin(2.0 * np.pi * self.ring_hz / self.sample_rate * idx)
+        y = x * (1.0 - self.ring_mix) + x * carrier * self.ring_mix
+
+        c = np.empty(n, dtype=np.float64)
+        d = self.delay
+        for s in range(0, n, d):
+            e = min(s + d, n)
+            # c[k-d] for this slice is the oldest part of the history window
+            c[s:e] = y[s:e] + self.feedback * self._hist[:e - s]
+            self._hist = np.concatenate((self._hist[e - s:], c[s:e]))
+        out = y * (1.0 - self.comb_mix) + c * self.comb_mix
+        # tanh keeps quiet signals ~linear and bounds the loud ones to [-1, 1]
+        return np.tanh(out * self.gain).astype(np.float32)
+
+
 class SpeechPlayer:
     """Plays sentences through PocketTTS on a background thread, in order.
 
@@ -96,11 +163,13 @@ class SpeechPlayer:
     ~200 ms after a sentence is queued instead of after full synthesis.
     """
 
-    def __init__(self, tts: TTSModel, voice_state: dict):
+    def __init__(self, tts: TTSModel, voice_state: dict, persona_voices: dict | None = None):
         self.tts = tts
         self.voice_state = voice_state
+        self.persona_voices = persona_voices or {}
         self.queue = queue.Queue()
         self._amp = 0.0  # smoothed amplitude carried across chunks
+        self._fx: dict[str, VoiceFX | None] = {}  # per-persona filter, built lazily
         self._tok = self._find_tokenizer()
         threading.Thread(target=self._worker, daemon=True).start()
 
@@ -119,6 +188,16 @@ class SpeechPlayer:
                 pass
         return max(1, round(len(s.split()) * 1.4))  # heuristic fallback
 
+    def _fx_for(self, name: str) -> "VoiceFX | None":
+        """The persona's VoiceFX (reset for a fresh sentence), or None if it has no fx."""
+        if name not in self._fx:
+            cfg = config.PERSONAS.get(name, {}).get("fx")
+            self._fx[name] = VoiceFX(self.tts.sample_rate, **cfg) if cfg else None
+        fx = self._fx[name]
+        if fx is not None:
+            fx.reset()
+        return fx
+
     def _worker(self):
         while True:
             text = self.queue.get()
@@ -127,10 +206,15 @@ class SpeechPlayer:
                 with sd.OutputStream(
                     samplerate=self.tts.sample_rate, channels=1, dtype="float32"
                 ) as out:
-                    # copy_state (default) keeps self.voice_state pristine for
+                    # copy_state (default) keeps the voice state pristine for
                     # the next sentence.
-                    for chunk in self.tts.generate_audio_stream(self.voice_state, text):
+                    name = persona.current()
+                    voice = self.persona_voices.get(name, self.voice_state)
+                    fx = self._fx_for(name)
+                    for chunk in self.tts.generate_audio_stream(voice, text):
                         samples = chunk.numpy()
+                        if fx is not None:
+                            samples = fx.process(samples)
                         self._emit_amplitude(samples)
                         out.write(samples)
             except Exception as e:

@@ -8,3 +8,4 @@ openwakeword==0.6.0  # CPU wake word (custom "hey orion" ONNX model); run downlo
 websockets==16.0     # local HUD bridge (asyncio server on 127.0.0.1:8765)
 psutil==7.2.2        # CPU/RAM telemetry
 nvidia-ml-py         # GPU VRAM/util telemetry (NVML; import pynvml)
+faster-whisper==1.2.1  # CPU speech-to-text (CTranslate2 int8); weights download to the HF cache on first use
